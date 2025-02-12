@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Online Piano</title>
+  <style>
+    /* Basic page styling */
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background-color: #222;
+      margin: 0;
+      font-family: sans-serif;
+      user-select: none;
+    }
+    /* Piano container */
+    .piano {
+      position: relative;
+      width: 480px; /* 8 white keys × 60px */
+      height: 200px;
+    }
+    /* Container for white keys */
+    .white-keys {
+      display: flex;
+    }
+    /* White key styles */
+    .key.white {
+      width: 60px;
+      height: 200px;
+      background: white;
+      border: 1px solid #000;
+      box-sizing: border-box;
+      border-bottom-left-radius: 5px;
+      border-bottom-right-radius: 5px;
+      transition: transform 0.1s;
+      z-index: 1;
+      cursor: pointer;
+      position: relative;
+    }
+    /* Container for black keys (positioned over the white keys) */
+    .black-keys {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 480px;
+      height: 120px;
+      /* Disable pointer events on the container so that individual keys can still receive them */
+      pointer-events: none;
+    }
+    /* Black key styles */
+    .key.black {
+      position: absolute;
+      width: 40px;
+      height: 120px;
+      background: black;
+      border: 1px solid #333;
+      border-bottom-left-radius: 3px;
+      border-bottom-right-radius: 3px;
+      transition: transform 0.1s;
+      z-index: 2;
+      cursor: pointer;
+      /* Re-enable pointer events on the keys themselves */
+      pointer-events: auto;
+    }
+    /* Visual effect when a key is pressed */
+    .key.active {
+      transform: translateY(4px);
+      box-shadow: inset 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="piano">
+    <!-- White keys (from left to right) -->
+    <div class="white-keys">
+      <div class="key white" data-note="C" data-key="a"></div>
+      <div class="key white" data-note="D" data-key="s"></div>
+      <div class="key white" data-note="E" data-key="d"></div>
+      <div class="key white" data-note="F" data-key="f"></div>
+      <div class="key white" data-note="G" data-key="g"></div>
+      <div class="key white" data-note="A" data-key="h"></div>
+      <div class="key white" data-note="B" data-key="j"></div>
+      <div class="key white" data-note="C2" data-key="k"></div>
+    </div>
+    <!-- Black keys (positioned over the appropriate white keys) -->
+    <div class="black-keys">
+      <!-- Positions are set so that each black key centers between its adjacent white keys -->
+      <div class="key black" data-note="C#" data-key="w" style="left:40px;"></div>
+      <div class="key black" data-note="D#" data-key="e" style="left:100px;"></div>
+      <div class="key black" data-note="F#" data-key="t" style="left:220px;"></div>
+      <div class="key black" data-note="G#" data-key="y" style="left:280px;"></div>
+      <div class="key black" data-note="A#" data-key="u" style="left:340px;"></div>
+    </div>
+  </div>
+
+  <script>
+    // Map note names to frequencies (in Hz)
+    const notes = {
+      'C': 261.63,   // Middle C (C4)
+      'C#': 277.18,
+      'D': 293.66,
+      'D#': 311.13,
+      'E': 329.63,
+      'F': 349.23,
+      'F#': 369.99,
+      'G': 392.00,
+      'G#': 415.30,
+      'A': 440.00,
+      'A#': 466.16,
+      'B': 493.88,
+      'C2': 523.25   // One octave above middle C (C5)
+    };
+
+    // Create (or resume) an AudioContext for generating sound
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioContext();
+
+    /**
+     * Plays a note using an oscillator with a quick decay envelope.
+     * @param {string} note - The note name (e.g., "C", "D#", etc.)
+     */
+    function playNote(note) {
+      const frequency = notes[note];
+      if (!frequency) return;
+
+      // Create an oscillator and a gain node for the envelope
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.frequency.value = frequency;
+      oscillator.type = 'sine'; // Try 'square', 'triangle', or 'sawtooth' if you prefer
+
+      // Create a quick envelope: start at full volume and exponentially decay
+      gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1);
+
+      oscillator.start(audioCtx.currentTime);
+      oscillator.stop(audioCtx.currentTime + 1);
+    }
+
+    // Add mouse event listeners to each key for click interactions.
+    document.querySelectorAll('.key').forEach(key => {
+      key.addEventListener('mousedown', () => {
+        // Some browsers require a user gesture to resume the AudioContext.
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        playNote(key.dataset.note);
+        key.classList.add('active');
+      });
+      key.addEventListener('mouseup', () => {
+        key.classList.remove('active');
+      });
+      key.addEventListener('mouseleave', () => {
+        key.classList.remove('active');
+      });
+    });
+
+    // Listen for keyboard events.
+    // The data-key attribute on each key matches a keyboard key (e.g., "a", "s", "d", etc.)
+    document.addEventListener('keydown', e => {
+      if (e.repeat) return; // Avoid repeated triggers while holding down a key
+      const keyElement = document.querySelector(`.key[data-key="${e.key}"]`);
+      if (keyElement) {
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        playNote(keyElement.dataset.note);
+        keyElement.classList.add('active');
+      }
+    });
+
+    document.addEventListener('keyup', e => {
+      const keyElement = document.querySelector(`.key[data-key="${e.key}"]`);
+      if (keyElement) {
+        keyElement.classList.remove('active');
+      }
+    });
+  </script>
+</body>
+</html>
+

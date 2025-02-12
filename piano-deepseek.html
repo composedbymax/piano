@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive Piano</title>
+    <style>
+        .piano {
+            background: #362419;
+            padding: 20px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .white-keys {
+            display: flex;
+            position: relative;
+        }
+
+        .white-key {
+            width: 60px;
+            height: 200px;
+            background: #fff;
+            border: 1px solid #000;
+            border-radius: 0 0 5px 5px;
+            cursor: pointer;
+            transition: background 0.1s, transform 0.1s;
+        }
+
+        .black-keys {
+            position: absolute;
+            top: 0;
+            left: 40px;
+            display: flex;
+            gap: 38px;
+            pointer-events: none;
+        }
+
+        .black-key {
+            width: 40px;
+            height: 120px;
+            background: #000;
+            border-radius: 0 0 3px 3px;
+            cursor: pointer;
+            transition: background 0.1s, transform 0.1s;
+            pointer-events: all;
+        }
+
+        .key.active {
+            background: #4CAF50;
+            transform: translateY(2px);
+        }
+
+        .instructions {
+            margin: 20px;
+            font-family: Arial, sans-serif;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        Play with keyboard (A-L for white keys, W-E-T-U-O for black keys) or click with mouse!
+    </div>
+    <div class="piano">
+        <div class="white-keys"></div>
+        <div class="black-keys"></div>
+    </div>
+
+    <script>
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const activeOscillators = {};
+
+        const keyMap = {
+            'a': 60, 'w': 61, 's': 62, 'e': 63, 'd': 64,
+            'f': 65, 't': 66, 'g': 67, 'y': 68, 'h': 69,
+            'u': 70, 'j': 71, 'k': 72, 'o': 73, 'l': 74
+        };
+
+        const pianoLayout = [
+            { type: 'white', note: 60, key: 'a' },
+            { type: 'black', note: 61, key: 'w' },
+            { type: 'white', note: 62, key: 's' },
+            { type: 'black', note: 63, key: 'e' },
+            { type: 'white', note: 64, key: 'd' },
+            { type: 'white', note: 65, key: 'f' },
+            { type: 'black', note: 66, key: 't' },
+            { type: 'white', note: 67, key: 'g' },
+            { type: 'black', note: 68, key: 'y' },
+            { type: 'white', note: 69, key: 'h' },
+            { type: 'black', note: 70, key: 'u' },
+            { type: 'white', note: 71, key: 'j' },
+            { type: 'white', note: 72, key: 'k' },
+            { type: 'black', note: 73, key: 'o' },
+            { type: 'white', note: 74, key: 'l' }
+        ];
+
+        function createPiano() {
+            const whiteKeys = document.querySelector('.white-keys');
+            const blackKeys = document.querySelector('.black-keys');
+
+            pianoLayout.forEach(key => {
+                const element = document.createElement('div');
+                element.className = `${key.type}-key`;
+                element.dataset.note = key.note;
+                element.dataset.key = key.key;
+
+                if (key.type === 'white') {
+                    whiteKeys.appendChild(element);
+                } else {
+                    blackKeys.appendChild(element);
+                }
+            });
+        }
+
+        function playNote(frequency) {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+            oscillator.start();
+
+            return { oscillator, gainNode };
+        }
+
+        function getFrequency(note) {
+            return 440 * Math.pow(2, (note - 69) / 12);
+        }
+
+        function activateKey(element) {
+            element.classList.add('active');
+            const note = parseInt(element.dataset.note);
+            const frequency = getFrequency(note);
+            
+            const { oscillator, gainNode } = playNote(frequency);
+            activeOscillators[note] = { oscillator, gainNode };
+        }
+
+        function deactivateKey(element) {
+            element.classList.remove('active');
+            const note = parseInt(element.dataset.note);
+            const { oscillator, gainNode } = activeOscillators[note];
+            
+            if (oscillator) {
+                gainNode.gain.exponentialRampToValueAtTime(
+                    0.001, audioContext.currentTime + 0.1
+                );
+                oscillator.stop(audioContext.currentTime + 0.1);
+                delete activeOscillators[note];
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            createPiano();
+
+            // Mouse events
+            document.querySelectorAll('.white-key, .black-key').forEach(key => {
+                key.addEventListener('mousedown', () => activateKey(key));
+                key.addEventListener('mouseup', () => deactivateKey(key));
+                key.addEventListener('mouseleave', () => deactivateKey(key));
+            });
+
+            // Keyboard events
+            document.addEventListener('keydown', (e) => {
+                if (!e.repeat && keyMap[e.key]) {
+                    const key = document.querySelector(`[data-key="${e.key}"]`);
+                    if (key) activateKey(key);
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                if (keyMap[e.key]) {
+                    const key = document.querySelector(`[data-key="${e.key}"]`);
+                    if (key) deactivateKey(key);
+                }
+            });
+        });
+
+        // Enable audio context on first user interaction
+        document.addEventListener('click', () => {
+            audioContext.resume().then(() => {
+                console.log('Audio context ready');
+            });
+        }, { once: true });
+    </script>
+</body>
+</html>
