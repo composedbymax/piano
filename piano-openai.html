@@ -3,169 +3,280 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Interactive Online Piano</title>
+  <title>Online Piano</title>
   <style>
-    /* Basic page styling */
     body {
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      height: 100vh;
-      background-color: #222;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
       margin: 0;
-      font-family: sans-serif;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #fff;
       user-select: none;
     }
-    /* Piano container */
+    .controls {
+      margin: 20px;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    select, button {
+      background: #333;
+      color: white;
+      border: 1px solid #555;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #444;
+    }
     .piano {
       position: relative;
-      width: 480px; /* 8 white keys × 60px */
-      height: 200px;
+      width: 840px;
+      height: 280px;
+      margin: 20px;
     }
-    /* Container for white keys */
     .white-keys {
       display: flex;
+      height: 100%;
     }
-    /* White key styles */
     .key.white {
       width: 60px;
-      height: 200px;
-      background: white;
+      height: 100%;
+      background: linear-gradient(to bottom, #fff 0%, #f0f0f0 100%);
       border: 1px solid #000;
       box-sizing: border-box;
-      border-bottom-left-radius: 5px;
-      border-bottom-right-radius: 5px;
-      transition: transform 0.1s;
+      border-radius: 0 0 5px 5px;
+      transition: all 0.1s ease;
       z-index: 1;
       cursor: pointer;
       position: relative;
     }
-    /* Container for black keys (positioned over the white keys) */
+    .key.white:hover {
+      background: linear-gradient(to bottom, #f0f0f0 0%, #e6e6e6 100%);
+    }
     .black-keys {
       position: absolute;
       top: 0;
       left: 0;
-      width: 480px;
-      height: 120px;
-      /* Disable pointer events on the container so that individual keys can still receive them */
+      right: 0;
+      height: 160px;
       pointer-events: none;
     }
-    /* Black key styles */
     .key.black {
       position: absolute;
       width: 40px;
-      height: 120px;
-      background: black;
-      border: 1px solid #333;
-      border-bottom-left-radius: 3px;
-      border-bottom-right-radius: 3px;
-      transition: transform 0.1s;
+      height: 160px;
+      background: linear-gradient(to bottom, #000 0%, #222 100%);
+      border: 1px solid #000;
+      border-radius: 0 0 3px 3px;
+      transition: all 0.1s ease;
       z-index: 2;
       cursor: pointer;
-      /* Re-enable pointer events on the keys themselves */
       pointer-events: auto;
     }
-    /* Visual effect when a key is pressed */
+    .key.black:hover {
+      background: linear-gradient(to bottom, #222 0%, #333 100%);
+    }
     .key.active {
       transform: translateY(4px);
-      box-shadow: inset 0 4px 6px rgba(0, 0, 0, 0.3);
+      box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.3);
+    }
+    .key.white.active {
+      background: linear-gradient(to bottom, #e6e6e6 0%, #d9d9d9 100%);
+    }
+    .key.black.active {
+      background: linear-gradient(to bottom, #111 0%, #222 100%);
+    }
+    .key-label {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      color: #666;
+      pointer-events: none;
+    }
+    .black .key-label {
+      color: #fff;
+      bottom: 20px;
+    }
+    .visualizer {
+      width: 840px;
+      height: 100px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      margin-top: 20px;
+      overflow: hidden;
     }
   </style>
 </head>
 <body>
-  <div class="piano">
-    <!-- White keys (from left to right) -->
-    <div class="white-keys">
-      <div class="key white" data-note="C" data-key="a"></div>
-      <div class="key white" data-note="D" data-key="s"></div>
-      <div class="key white" data-note="E" data-key="d"></div>
-      <div class="key white" data-note="F" data-key="f"></div>
-      <div class="key white" data-note="G" data-key="g"></div>
-      <div class="key white" data-note="A" data-key="h"></div>
-      <div class="key white" data-note="B" data-key="j"></div>
-      <div class="key white" data-note="C2" data-key="k"></div>
+  <div class="controls">
+    <div class="control-group">
+      <label>Waveform:</label>
+      <select id="waveform">
+        <option value="sine">Sine</option>
+        <option value="square">Square</option>
+        <option value="sawtooth">Sawtooth</option>
+        <option value="triangle">Triangle</option>
+      </select>
     </div>
-    <!-- Black keys (positioned over the appropriate white keys) -->
-    <div class="black-keys">
-      <!-- Positions are set so that each black key centers between its adjacent white keys -->
-      <div class="key black" data-note="C#" data-key="w" style="left:40px;"></div>
-      <div class="key black" data-note="D#" data-key="e" style="left:100px;"></div>
-      <div class="key black" data-note="F#" data-key="t" style="left:220px;"></div>
-      <div class="key black" data-note="G#" data-key="y" style="left:280px;"></div>
-      <div class="key black" data-note="A#" data-key="u" style="left:340px;"></div>
+    <div class="control-group">
+      <label>Reverb:</label>
+      <select id="reverb">
+        <option value="0">None</option>
+        <option value="0.1">Small Room</option>
+        <option value="0.2">Medium Room</option>
+        <option value="0.3">Large Hall</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>Volume:</label>
+      <input type="range" id="volume" min="0" max="100" value="70">
     </div>
   </div>
-
+  <div class="piano">
+    <div class="white-keys">
+      <div class="key white" data-note="C" data-key="a"><div class="key-label">A</div></div>
+      <div class="key white" data-note="D" data-key="s"><div class="key-label">S</div></div>
+      <div class="key white" data-note="E" data-key="d"><div class="key-label">D</div></div>
+      <div class="key white" data-note="F" data-key="f"><div class="key-label">F</div></div>
+      <div class="key white" data-note="G" data-key="g"><div class="key-label">G</div></div>
+      <div class="key white" data-note="A" data-key="h"><div class="key-label">H</div></div>
+      <div class="key white" data-note="B" data-key="j"><div class="key-label">J</div></div>
+      <div class="key white" data-note="C2" data-key="k"><div class="key-label">K</div></div>
+      <div class="key white" data-note="D2" data-key="l"><div class="key-label">L</div></div>
+      <div class="key white" data-note="E2" data-key=";""><div class="key-label">;</div></div>
+      <div class="key white" data-note="F2" data-key="'""><div class="key-label">'</div></div>
+    </div>
+    <div class="black-keys">
+      <div class="key black" data-note="C#" data-key="w" style="left: 40px"><div class="key-label">W</div></div>
+      <div class="key black" data-note="D#" data-key="e" style="left: 100px"><div class="key-label">E</div></div>
+      <div class="key black" data-note="F#" data-key="t" style="left: 220px"><div class="key-label">T</div></div>
+      <div class="key black" data-note="G#" data-key="y" style="left: 280px"><div class="key-label">Y</div></div>
+      <div class="key black" data-note="A#" data-key="u" style="left: 340px"><div class="key-label">U</div></div>
+      <div class="key black" data-note="C#2" data-key="o" style="left: 460px"><div class="key-label">O</div></div>
+      <div class="key black" data-note="D#2" data-key="p" style="left: 520px"><div class="key-label">P</div></div>
+    </div>
+  </div>
+  <canvas class="visualizer"></canvas>
   <script>
-    // Map note names to frequencies (in Hz)
     const notes = {
-      'C': 261.63,   // Middle C (C4)
-      'C#': 277.18,
-      'D': 293.66,
-      'D#': 311.13,
-      'E': 329.63,
-      'F': 349.23,
-      'F#': 369.99,
-      'G': 392.00,
-      'G#': 415.30,
-      'A': 440.00,
-      'A#': 466.16,
-      'B': 493.88,
-      'C2': 523.25   // One octave above middle C (C5)
+      'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13, 'E': 329.63,
+      'F': 349.23, 'F#': 369.99, 'G': 392.00, 'G#': 415.30, 'A': 440.00,
+      'A#': 466.16, 'B': 493.88, 'C2': 523.25, 'C#2': 554.37, 'D2': 587.33,
+      'D#2': 622.25, 'E2': 659.26, 'F2': 698.46
     };
-
-    // Create (or resume) an AudioContext for generating sound
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AudioContext();
-
-    /**
-     * Plays a note using an oscillator with a quick decay envelope.
-     * @param {string} note - The note name (e.g., "C", "D#", etc.)
-     */
-    function playNote(note) {
+    const masterGain = audioCtx.createGain();
+    const convolver = audioCtx.createConvolver();
+    const analyzer = audioCtx.createAnalyser();
+    masterGain.connect(analyzer);
+    analyzer.connect(audioCtx.destination);
+    const canvas = document.querySelector('.visualizer');
+    const canvasCtx = canvas.getContext('2d');
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    analyzer.fftSize = 2048;
+    const bufferLength = analyzer.frequencyBinCount;
+    const dataArray = new Float32Array(bufferLength);
+    function drawVisualizer() {
+      requestAnimationFrame(drawVisualizer);
+      analyzer.getFloatTimeDomainData(dataArray);
+      canvasCtx.fillStyle = 'rgb(26, 26, 26)';
+      canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+      canvasCtx.lineWidth = 2;
+      canvasCtx.strokeStyle = 'rgb(0, 255, 0)';
+      canvasCtx.beginPath();
+      const sliceWidth = canvas.width * 1.0 / bufferLength;
+      let x = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] * 90.0;
+        const y = (canvas.height / 2) + (v * canvas.height / 2);
+        if (i === 0) {
+          canvasCtx.moveTo(x, y);
+        } else {
+          canvasCtx.lineTo(x, y);
+        }
+        x += sliceWidth;
+      }
+      canvasCtx.lineTo(canvas.width, canvas.height / 2);
+      canvasCtx.stroke();
+    }
+    drawVisualizer();
+    function createImpulseResponse(duration, decay) {
+      const sampleRate = audioCtx.sampleRate;
+      const length = sampleRate * duration;
+      const impulse = audioCtx.createBuffer(2, length, sampleRate);
+      const left = impulse.getChannelData(0);
+      const right = impulse.getChannelData(1);
+      for (let i = 0; i < length; i++) {
+        const n = i / length;
+        left[i] = (Math.random() * 2 - 1) * Math.pow(1 - n, decay);
+        right[i] = (Math.random() * 2 - 1) * Math.pow(1 - n, decay);
+      }
+      return impulse;
+    }
+    function playNote(note, startTime = audioCtx.currentTime) {
       const frequency = notes[note];
       if (!frequency) return;
-
-      // Create an oscillator and a gain node for the envelope
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
-      
       oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-
+      gainNode.connect(masterGain);
       oscillator.frequency.value = frequency;
-      oscillator.type = 'sine'; // Try 'square', 'triangle', or 'sawtooth' if you prefer
-
-      // Create a quick envelope: start at full volume and exponentially decay
-      gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1);
-
-      oscillator.start(audioCtx.currentTime);
-      oscillator.stop(audioCtx.currentTime + 1);
+      oscillator.type = document.getElementById('waveform').value;
+      const volume = document.getElementById('volume').value / 100;
+      gainNode.gain.setValueAtTime(volume, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + 1);
+      oscillator.start(startTime);
+      oscillator.stop(startTime + 1);
     }
-
-    // Add mouse event listeners to each key for click interactions.
+    document.getElementById('reverb').addEventListener('change', (e) => {
+      const reverbTime = parseFloat(e.target.value);
+      if (reverbTime === 0) {
+        masterGain.disconnect();
+        masterGain.connect(analyzer);
+      } else {
+        convolver.buffer = createImpulseResponse(reverbTime, 2);
+        masterGain.disconnect();
+        masterGain.connect(convolver);
+        convolver.connect(analyzer);
+      }
+    });
     document.querySelectorAll('.key').forEach(key => {
-      key.addEventListener('mousedown', () => {
-        // Some browsers require a user gesture to resume the AudioContext.
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
-        }
-        playNote(key.dataset.note);
-        key.classList.add('active');
+      ['mousedown', 'touchstart'].forEach(eventName => {
+        key.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+          }
+          playNote(key.dataset.note);
+          key.classList.add('active');
+        });
       });
-      key.addEventListener('mouseup', () => {
-        key.classList.remove('active');
-      });
-      key.addEventListener('mouseleave', () => {
-        key.classList.remove('active');
+      ['mouseup', 'mouseleave', 'touchend'].forEach(eventName => {
+        key.addEventListener(eventName, () => {
+          key.classList.remove('active');
+        });
       });
     });
-
-    // Listen for keyboard events.
-    // The data-key attribute on each key matches a keyboard key (e.g., "a", "s", "d", etc.)
     document.addEventListener('keydown', e => {
-      if (e.repeat) return; // Avoid repeated triggers while holding down a key
+      if (e.repeat) return;
       const keyElement = document.querySelector(`.key[data-key="${e.key}"]`);
       if (keyElement) {
         if (audioCtx.state === 'suspended') {
@@ -175,7 +286,6 @@
         keyElement.classList.add('active');
       }
     });
-
     document.addEventListener('keyup', e => {
       const keyElement = document.querySelector(`.key[data-key="${e.key}"]`);
       if (keyElement) {
@@ -185,4 +295,3 @@
   </script>
 </body>
 </html>
-
