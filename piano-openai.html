@@ -44,7 +44,8 @@
     }
     .piano {
       position: relative;
-      width: 840px;
+      width: 100%;
+      max-width: 840px;
       height: 280px;
       margin: 20px;
     }
@@ -53,7 +54,7 @@
       height: 100%;
     }
     .key.white {
-      width: 60px;
+      flex: 1;
       height: 100%;
       background: linear-gradient(to bottom, #fff 0%, #f0f0f0 100%);
       border: 1px solid #000;
@@ -77,8 +78,6 @@
     }
     .key.black {
       position: absolute;
-      width: 40px;
-      height: 160px;
       background: linear-gradient(to bottom, #000 0%, #222 100%);
       border: 1px solid #000;
       border-radius: 0 0 3px 3px;
@@ -114,7 +113,8 @@
       bottom: 20px;
     }
     .visualizer {
-      width: 840px;
+      width: 100%;
+      max-width: 840px;
       height: 100px;
       background: rgba(0, 0, 0, 0.2);
       border-radius: 8px;
@@ -163,13 +163,13 @@
       <div class="key white" data-note="F2" data-key="'""><div class="key-label">'</div></div>
     </div>
     <div class="black-keys">
-      <div class="key black" data-note="C#" data-key="w" style="left: 40px"><div class="key-label">W</div></div>
-      <div class="key black" data-note="D#" data-key="e" style="left: 100px"><div class="key-label">E</div></div>
-      <div class="key black" data-note="F#" data-key="t" style="left: 220px"><div class="key-label">T</div></div>
-      <div class="key black" data-note="G#" data-key="y" style="left: 280px"><div class="key-label">Y</div></div>
-      <div class="key black" data-note="A#" data-key="u" style="left: 340px"><div class="key-label">U</div></div>
-      <div class="key black" data-note="C#2" data-key="o" style="left: 460px"><div class="key-label">O</div></div>
-      <div class="key black" data-note="D#2" data-key="p" style="left: 520px"><div class="key-label">P</div></div>
+      <div class="key black" data-note="C#" data-key="w" data-pos="0"><div class="key-label">W</div></div>
+      <div class="key black" data-note="D#" data-key="e" data-pos="1"><div class="key-label">E</div></div>
+      <div class="key black" data-note="F#" data-key="t" data-pos="3"><div class="key-label">T</div></div>
+      <div class="key black" data-note="G#" data-key="y" data-pos="4"><div class="key-label">Y</div></div>
+      <div class="key black" data-note="A#" data-key="u" data-pos="5"><div class="key-label">U</div></div>
+      <div class="key black" data-note="C#2" data-key="o" data-pos="7"><div class="key-label">O</div></div>
+      <div class="key black" data-note="D#2" data-key="p" data-pos="8"><div class="key-label">P</div></div>
     </div>
   </div>
   <canvas class="visualizer"></canvas>
@@ -202,7 +202,7 @@
       canvasCtx.lineWidth = 2;
       canvasCtx.strokeStyle = 'rgb(0, 255, 0)';
       canvasCtx.beginPath();
-      const sliceWidth = canvas.width * 1.0 / bufferLength;
+      const sliceWidth = canvas.width / bufferLength;
       let x = 0;
       for (let i = 0; i < bufferLength; i++) {
         const v = dataArray[i] * 90.0;
@@ -292,6 +292,30 @@
         keyElement.classList.remove('active');
       }
     });
+    function updateBlackKeys() {
+      const piano = document.querySelector('.piano');
+      const pianoRect = piano.getBoundingClientRect();
+      const whiteKeys = piano.querySelectorAll('.white-keys .key.white');
+      const whiteKeyPositions = Array.from(whiteKeys).map(key => {
+        const rect = key.getBoundingClientRect();
+        return { left: rect.left - pianoRect.left, width: rect.width };
+      });
+      const blackKeys = piano.querySelectorAll('.black-keys .key.black');
+      blackKeys.forEach(key => {
+        const posIndex = parseInt(key.dataset.pos, 10);
+        if (!isNaN(posIndex) && whiteKeyPositions[posIndex]) {
+          const whiteKey = whiteKeyPositions[posIndex];
+          const blackWidth = whiteKey.width * (40 / 60);
+          const left = whiteKey.left + whiteKey.width - (blackWidth / 2);
+          key.style.width = `${blackWidth}px`;
+          const blackHeight = pianoRect.height * (160 / 280);
+          key.style.height = `${blackHeight}px`;
+          key.style.left = `${left}px`;
+        }
+      });
+    }
+    window.addEventListener('resize', updateBlackKeys);
+    window.addEventListener('DOMContentLoaded', updateBlackKeys);
   </script>
 </body>
 </html>
