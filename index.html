@@ -183,7 +183,6 @@
       <label>Volume:</label>
       <input type="range" id="volume" min="0" max="100" value="70">
     </div>
-    <!-- New Detune Slider -->
     <div class="control-group">
       <label>Detune (cents):</label>
       <input type="range" id="detune" min="-50" max="50" value="0">
@@ -272,22 +271,6 @@
       }
       return impulse;
     }
-    function playNote(note, startTime = audioCtx.currentTime) {
-      const frequency = notes[note];
-      if (!frequency) return;
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      oscillator.connect(gainNode);
-      gainNode.connect(masterGain);
-      oscillator.frequency.value = frequency;
-      oscillator.type = document.getElementById('waveform').value;
-      oscillator.detune.value = parseFloat(document.getElementById('detune').value);
-      const volume = document.getElementById('volume').value / 100;
-      gainNode.gain.setValueAtTime(volume, startTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + 1);
-      oscillator.start(startTime);
-      oscillator.stop(startTime + 1);
-    }
     document.getElementById('reverb').addEventListener('change', (e) => {
       const reverbTime = parseFloat(e.target.value);
       if (reverbTime === 0) {
@@ -300,6 +283,57 @@
         convolver.connect(analyzer);
       }
     });
+    let shiftUpPressed = false;
+    let shiftDownPressed = false;
+    function getShiftFactor() {
+      if (shiftUpPressed && !shiftDownPressed) {
+        return Math.pow(2, 2/12);
+      } else if (shiftDownPressed && !shiftUpPressed) {
+        return Math.pow(2, -2/12);
+      }
+      return 1;
+    }
+    const activeNotes = {};
+    function startNote(keyElement) {
+      const keyId = keyElement.dataset.key;
+      if (activeNotes[keyId]) return;
+      const noteName = keyElement.dataset.note;
+      const baseFrequency = notes[noteName];
+      if (!baseFrequency) return;
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.type = document.getElementById('waveform').value;
+      oscillator.detune.value = parseFloat(document.getElementById('detune').value);
+      const shiftFactor = getShiftFactor();
+      oscillator.frequency.value = baseFrequency * shiftFactor;
+      const volume = document.getElementById('volume').value / 100;
+      gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+      oscillator.connect(gainNode);
+      gainNode.connect(masterGain);
+      oscillator.start();
+      activeNotes[keyId] = { oscillator, gainNode, baseFrequency, keyElement };
+    }
+    function stopNote(keyElement) {
+      const keyId = keyElement.dataset.key;
+      const noteData = activeNotes[keyId];
+      if (!noteData) return;
+      const { oscillator, gainNode } = noteData;
+      gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+      oscillator.stop(audioCtx.currentTime + 0.1);
+      delete activeNotes[keyId];
+    }
+    function updateActiveOscillatorFrequencies() {
+      const shiftFactor = getShiftFactor();
+      const slideTime = 0.1;
+      for (const keyId in activeNotes) {
+        const { oscillator, baseFrequency } = activeNotes[keyId];
+        const newFreq = baseFrequency * shiftFactor;
+        oscillator.frequency.cancelScheduledValues(audioCtx.currentTime);
+        oscillator.frequency.linearRampToValueAtTime(newFreq, audioCtx.currentTime + slideTime);
+      }
+    }
     document.querySelectorAll('.key').forEach(key => {
       ['mousedown', 'touchstart'].forEach(eventName => {
         key.addEventListener(eventName, (e) => {
@@ -307,31 +341,53 @@
           if (audioCtx.state === 'suspended') {
             audioCtx.resume();
           }
-          playNote(key.dataset.note);
+          startNote(key);
           key.classList.add('active');
         });
       });
       ['mouseup', 'mouseleave', 'touchend'].forEach(eventName => {
         key.addEventListener(eventName, () => {
           key.classList.remove('active');
+          stopNote(key);
         });
       });
     });
     document.addEventListener('keydown', e => {
       if (e.repeat) return;
+      if (e.key === '1') {
+        shiftDownPressed = true;
+        updateActiveOscillatorFrequencies();
+        return;
+      }
+      if (e.key === '2') {
+        shiftUpPressed = true;
+        updateActiveOscillatorFrequencies();
+        return;
+      }
       const keyElement = document.querySelector(`.key[data-key="${e.key}"]`);
       if (keyElement) {
         if (audioCtx.state === 'suspended') {
           audioCtx.resume();
         }
-        playNote(keyElement.dataset.note);
+        startNote(keyElement);
         keyElement.classList.add('active');
       }
     });
     document.addEventListener('keyup', e => {
+      if (e.key === '1') {
+        shiftDownPressed = false;
+        updateActiveOscillatorFrequencies();
+        return;
+      }
+      if (e.key === '2') {
+        shiftUpPressed = false;
+        updateActiveOscillatorFrequencies();
+        return;
+      }
       const keyElement = document.querySelector(`.key[data-key="${e.key}"]`);
       if (keyElement) {
         keyElement.classList.remove('active');
+        stopNote(keyElement);
       }
     });
     function updateBlackKeys() {
