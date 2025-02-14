@@ -183,6 +183,11 @@
       <label>Volume:</label>
       <input type="range" id="volume" min="0" max="100" value="70">
     </div>
+    <!-- New Detune Slider -->
+    <div class="control-group">
+      <label>Detune (cents):</label>
+      <input type="range" id="detune" min="-50" max="50" value="0">
+    </div>
   </div>
   <div class="piano">
     <div class="white-keys">
@@ -276,6 +281,7 @@
       gainNode.connect(masterGain);
       oscillator.frequency.value = frequency;
       oscillator.type = document.getElementById('waveform').value;
+      oscillator.detune.value = parseFloat(document.getElementById('detune').value);
       const volume = document.getElementById('volume').value / 100;
       gainNode.gain.setValueAtTime(volume, startTime);
       gainNode.gain.exponentialRampToValueAtTime(0.001, startTime + 1);
