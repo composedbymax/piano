@@ -354,6 +354,7 @@
         oscillator.frequency.linearRampToValueAtTime(newFreq, audioCtx.currentTime + slideTime);
       }
     }
+
     document.querySelectorAll('.key').forEach(key => {
       ['mousedown', 'touchstart'].forEach(eventName => {
         key.addEventListener(eventName, (e) => {
@@ -365,6 +366,7 @@
           key.classList.add('active');
         });
       });
+      
       ['mouseup', 'mouseleave', 'touchend'].forEach(eventName => {
         key.addEventListener(eventName, () => {
           key.classList.remove('active');
@@ -372,6 +374,7 @@
         });
       });
     });
+
     document.addEventListener('keydown', e => {
       if (e.repeat) return;
       if (e.key.toLowerCase() === 'z') {
