@@ -225,7 +225,14 @@
     const masterGain = audioCtx.createGain();
     const convolver = audioCtx.createConvolver();
     const analyzer = audioCtx.createAnalyser();
-    masterGain.connect(analyzer);
+    const compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -15;
+    compressor.knee.value = 10;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.005;
+    compressor.release.value = 0.1;
+    masterGain.connect(compressor);
+    compressor.connect(analyzer);
     analyzer.connect(audioCtx.destination);
     const canvas = document.querySelector('.visualizer');
     const canvasCtx = canvas.getContext('2d');
@@ -234,6 +241,16 @@
     analyzer.fftSize = 2048;
     const bufferLength = analyzer.frequencyBinCount;
     const dataArray = new Float32Array(bufferLength);
+    function updatePolyphonicGain() {
+      const activeCount = Object.keys(activeNotes).length;
+      if (activeCount > 0) {
+        const reduction = Math.max(0.2, 1 / Math.sqrt(activeCount));
+        const volume = (document.getElementById('volume').value / 100) * reduction;
+        Object.values(activeNotes).forEach(({ gainNode }) => {
+          gainNode.gain.setTargetAtTime(volume, audioCtx.currentTime, 0.01);
+        });
+      }
+    }
     function drawVisualizer() {
       requestAnimationFrame(drawVisualizer);
       analyzer.getFloatTimeDomainData(dataArray);
@@ -306,12 +323,12 @@
       oscillator.detune.value = parseFloat(document.getElementById('detune').value);
       const shiftFactor = getShiftFactor();
       oscillator.frequency.value = baseFrequency * shiftFactor;
-      const volume = document.getElementById('volume').value / 100;
-      gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
       oscillator.connect(gainNode);
       gainNode.connect(masterGain);
       oscillator.start();
       activeNotes[keyId] = { oscillator, gainNode, baseFrequency, keyElement };
+      updatePolyphonicGain();
     }
     function stopNote(keyElement) {
       const keyId = keyElement.dataset.key;
@@ -319,10 +336,10 @@
       if (!noteData) return;
       const { oscillator, gainNode } = noteData;
       gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
-      gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+      gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.01);
       oscillator.stop(audioCtx.currentTime + 0.1);
       delete activeNotes[keyId];
+      updatePolyphonicGain();
     }
     function updateActiveOscillatorFrequencies() {
       const shiftFactor = getShiftFactor();
