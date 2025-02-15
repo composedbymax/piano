@@ -11,10 +11,8 @@
       align-items: center;
       min-height: 100vh;
       background: linear-gradient(180deg, #000000, #ffffff);
-      margin: 0;
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       color: #fff;
-      user-select: none;
       overflow: hidden;
     }
     .controls {
@@ -24,17 +22,20 @@
       padding: 1.5rem;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1.5rem;
+      gap: 1rem;
       width: 100%;
       max-width: 840px;
-      margin-bottom: 2rem;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      margin: 4rem;
+      margin:1rem;
     }
     .control-group {
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+    }
+    .record {
+      display: flex;
+      gap: 3rem;
     }
     .control-group label {
       font-size: 0.9rem;
@@ -180,6 +181,10 @@
       </select>
     </div>
     <div class="control-group">
+      <label>Tempo (BPM):</label>
+      <input type="number" id="tempo" value="120" min="40" max="240">
+    </div>
+    <div class="control-group">
       <label>Volume:</label>
       <input type="range" id="volume" min="0" max="100" value="70">
     </div>
@@ -188,10 +193,12 @@
       <input type="range" id="detune" min="-50" max="50" value="0">
     </div>
     <div class="control-group">
-      <label>Tempo (BPM):</label>
-      <input type="number" id="tempo" value="120" min="40" max="240">
+      <label>
+        <input type="checkbox" id="metronomeToggle">
+        Metronome
+      </label>
     </div>
-    <div class="control-group">
+    <div class="record">
       <button id="startRecording">Start Recording</button>
       <button id="stopRecording" disabled>Stop Recording</button>
       <button id="exportMIDI" disabled>Export MIDI</button>
@@ -304,6 +311,46 @@
         masterGain.disconnect();
         masterGain.connect(convolver);
         convolver.connect(analyzer);
+      }
+    });
+    let metronomeInterval = null;
+    function playMetronomeBeat() {
+      const osc = audioCtx.createOscillator();
+      const clickGain = audioCtx.createGain();
+      osc.connect(clickGain);
+      clickGain.connect(audioCtx.destination);
+      osc.frequency.value = 1000;
+      clickGain.gain.setValueAtTime(1, audioCtx.currentTime);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.1);
+    }
+    function startMetronome() {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      if (metronomeInterval) clearInterval(metronomeInterval);
+      const tempo = parseInt(document.getElementById('tempo').value, 10) || 120;
+      const intervalTime = 60000 / tempo;
+      metronomeInterval = setInterval(playMetronomeBeat, intervalTime);
+    }
+    function stopMetronome() {
+      if (metronomeInterval) {
+        clearInterval(metronomeInterval);
+        metronomeInterval = null;
+      }
+    }
+    document.getElementById('tempo').addEventListener('change', () => {
+      const metronomeCheckbox = document.getElementById('metronomeToggle');
+      if (metronomeCheckbox.checked) {
+        startMetronome();
+      }
+    });
+    document.getElementById('metronomeToggle').addEventListener('change', (e) => {
+      if (e.target.checked) {
+        startMetronome();
+      } else {
+        stopMetronome();
       }
     });
     let shiftUpPressed = false;
