@@ -42,7 +42,7 @@
       letter-spacing: 0.05em;
       opacity: 0.9;
     }
-    select, button {
+    select, button, input[type="number"] {
       background: rgba(255, 255, 255, 0.1);
       color: white;
       border: 1px solid rgba(255, 255, 255, 0.2);
@@ -52,7 +52,7 @@
       font-size: 0.9rem;
       transition: all 0.2s ease;
     }
-    select:hover, button:hover {
+    select:hover, button:hover, input[type="number"]:hover {
       background: rgba(255, 255, 255, 0.2);
     }
     input[type="range"] {
@@ -187,6 +187,21 @@
       <label>Detune (cents):</label>
       <input type="range" id="detune" min="-50" max="50" value="0">
     </div>
+    <div class="control-group">
+      <label>Tempo (BPM):</label>
+      <input type="number" id="tempo" value="120" min="40" max="240">
+    </div>
+    <div class="control-group">
+      <label>
+        <input type="checkbox" id="metronomeToggle">
+        Metronome
+      </label>
+    </div>
+    <div class="control-group">
+      <button id="startRecording">Start Recording</button>
+      <button id="stopRecording" disabled>Stop Recording</button>
+      <button id="exportMIDI" disabled>Export MIDI</button>
+    </div>
   </div>
   <div class="piano">
     <div class="white-keys">
@@ -220,6 +235,12 @@
       'A#': 466.16, 'B': 493.88, 'C2': 523.25, 'C#2': 554.37, 'D2': 587.33,
       'D#2': 622.25, 'E2': 659.26, 'F2': 698.46
     };
+    const midiMapping = {
+      'C': 60, 'C#': 61, 'D': 62, 'D#': 63, 'E': 64,
+      'F': 65, 'F#': 66, 'G': 67, 'G#': 68, 'A': 69,
+      'A#': 70, 'B': 71, 'C2': 72, 'C#2': 73, 'D2': 74,
+      'D#2': 75, 'E2': 76, 'F2': 77
+    };
     let currentOctaveShift = 0;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AudioContext();
@@ -242,16 +263,6 @@
     analyzer.fftSize = 2048;
     const bufferLength = analyzer.frequencyBinCount;
     const dataArray = new Float32Array(bufferLength);
-    function updatePolyphonicGain() {
-      const activeCount = Object.keys(activeNotes).length;
-      if (activeCount > 0) {
-        const reduction = Math.max(0.2, 1 / Math.sqrt(activeCount));
-        const volume = (document.getElementById('volume').value / 100) * reduction;
-        Object.values(activeNotes).forEach(({ gainNode }) => {
-          gainNode.gain.setTargetAtTime(volume, audioCtx.currentTime, 0.01);
-        });
-      }
-    }
     function drawVisualizer() {
       requestAnimationFrame(drawVisualizer);
       analyzer.getFloatTimeDomainData(dataArray);
@@ -301,6 +312,46 @@
         convolver.connect(analyzer);
       }
     });
+    let metronomeInterval = null;
+    function playMetronomeBeat() {
+      const osc = audioCtx.createOscillator();
+      const clickGain = audioCtx.createGain();
+      osc.connect(clickGain);
+      clickGain.connect(audioCtx.destination);
+      osc.frequency.value = 1000;
+      clickGain.gain.setValueAtTime(1, audioCtx.currentTime);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.1);
+    }
+    function startMetronome() {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      if (metronomeInterval) clearInterval(metronomeInterval);
+      const tempo = parseInt(document.getElementById('tempo').value, 10) || 120;
+      const intervalTime = 60000 / tempo;
+      metronomeInterval = setInterval(playMetronomeBeat, intervalTime);
+    }
+    function stopMetronome() {
+      if (metronomeInterval) {
+        clearInterval(metronomeInterval);
+        metronomeInterval = null;
+      }
+    }
+    document.getElementById('tempo').addEventListener('change', () => {
+      const metronomeCheckbox = document.getElementById('metronomeToggle');
+      if (metronomeCheckbox.checked) {
+        startMetronome();
+      }
+    });
+    document.getElementById('metronomeToggle').addEventListener('change', (e) => {
+      if (e.target.checked) {
+        startMetronome();
+      } else {
+        stopMetronome();
+      }
+    });
     let shiftUpPressed = false;
     let shiftDownPressed = false;
     function getShiftFactor() {
@@ -314,6 +365,9 @@
       return factor;
     }
     const activeNotes = {};
+    let isRecording = false;
+    let recordingStartTime = 0;
+    let midiEvents = [];
     function startNote(keyElement) {
       const keyId = keyElement.dataset.key;
       if (activeNotes[keyId]) return;
@@ -332,6 +386,13 @@
       oscillator.start();
       activeNotes[keyId] = { oscillator, gainNode, baseFrequency, keyElement };
       updatePolyphonicGain();
+      if (isRecording) {
+        const eventTime = audioCtx.currentTime - recordingStartTime;
+        const midiNote = midiMapping[noteName];
+        if (midiNote !== undefined) {
+          midiEvents.push({ type: 'noteOn', note: midiNote, time: eventTime });
+        }
+      }
     }
     function stopNote(keyElement) {
       const keyId = keyElement.dataset.key;
@@ -343,6 +404,23 @@
       oscillator.stop(audioCtx.currentTime + 0.1);
       delete activeNotes[keyId];
       updatePolyphonicGain();
+      if (isRecording) {
+        const eventTime = audioCtx.currentTime - recordingStartTime;
+        const midiNote = midiMapping[keyElement.dataset.note];
+        if (midiNote !== undefined) {
+          midiEvents.push({ type: 'noteOff', note: midiNote, time: eventTime });
+        }
+      }
+    }
+    function updatePolyphonicGain() {
+      const activeCount = Object.keys(activeNotes).length;
+      if (activeCount > 0) {
+        const reduction = Math.max(0.2, 1 / Math.sqrt(activeCount));
+        const volume = (document.getElementById('volume').value / 100) * reduction;
+        Object.values(activeNotes).forEach(({ gainNode }) => {
+          gainNode.gain.setTargetAtTime(volume, audioCtx.currentTime, 0.01);
+        });
+      }
     }
     function updateActiveOscillatorFrequencies() {
       const shiftFactor = getShiftFactor();
@@ -354,7 +432,6 @@
         oscillator.frequency.linearRampToValueAtTime(newFreq, audioCtx.currentTime + slideTime);
       }
     }
-
     document.querySelectorAll('.key').forEach(key => {
       ['mousedown', 'touchstart'].forEach(eventName => {
         key.addEventListener(eventName, (e) => {
@@ -366,7 +443,6 @@
           key.classList.add('active');
         });
       });
-      
       ['mouseup', 'mouseleave', 'touchend'].forEach(eventName => {
         key.addEventListener(eventName, () => {
           key.classList.remove('active');
@@ -374,7 +450,6 @@
         });
       });
     });
-
     document.addEventListener('keydown', e => {
       if (e.repeat) return;
       if (e.key.toLowerCase() === 'z') {
@@ -447,6 +522,83 @@
     }
     window.addEventListener('resize', updateBlackKeys);
     window.addEventListener('DOMContentLoaded', updateBlackKeys);
+    document.getElementById('startRecording').addEventListener('click', () => {
+      isRecording = true;
+      recordingStartTime = audioCtx.currentTime;
+      midiEvents = [];
+      document.getElementById('startRecording').disabled = true;
+      document.getElementById('stopRecording').disabled = false;
+      document.getElementById('exportMIDI').disabled = true;
+    });
+    document.getElementById('stopRecording').addEventListener('click', () => {
+      isRecording = false;
+      document.getElementById('startRecording').disabled = false;
+      document.getElementById('stopRecording').disabled = true;
+      if (midiEvents.length > 0) {
+        document.getElementById('exportMIDI').disabled = false;
+      }
+    });
+    document.getElementById('exportMIDI').addEventListener('click', () => {
+      exportMIDIFile();
+    });
+    function writeVariableLength(value) {
+      let buffer = [];
+      while (value > 127) {
+        buffer.push((value & 127) | 128);
+        value >>= 7;
+      }
+      buffer.push(value);
+      return buffer;
+    }
+    function exportMIDIFile() {
+      const tempoInput = document.getElementById('tempo');
+      const tempo = parseInt(tempoInput.value, 10) || 120;
+      const division = 96;
+      midiEvents.sort((a, b) => a.time - b.time);
+      let trackData = [];
+      trackData.push(0x00);
+      trackData.push(0xFF, 0x51, 0x03);
+      const microPerQuarter = Math.round(60000000 / tempo);
+      trackData.push((microPerQuarter >> 16) & 0xFF, (microPerQuarter >> 8) & 0xFF, microPerQuarter & 0xFF);
+      let prevTick = 0;
+      midiEvents.forEach(event => {
+        const currentTick = Math.round(event.time * (tempo / 60) * division);
+        const deltaTicks = currentTick - prevTick;
+        prevTick = currentTick;
+        trackData.push(...writeVariableLength(deltaTicks));
+        if (event.type === 'noteOn') {
+          trackData.push(0x90, event.note, 64);
+        } else if (event.type === 'noteOff') {
+          trackData.push(0x80, event.note, 0);
+        }
+      });
+      trackData.push(0x00, 0xFF, 0x2F, 0x00);
+      let trackChunk = [];
+      trackChunk.push(77, 84, 114, 107);
+      const trackLength = trackData.length;
+      trackChunk.push(
+        (trackLength >> 24) & 0xFF,
+        (trackLength >> 16) & 0xFF,
+        (trackLength >> 8) & 0xFF,
+        trackLength & 0xFF
+      );
+      trackChunk.push(...trackData);
+      let headerChunk = [];
+      headerChunk.push(77, 84, 104, 100);
+      headerChunk.push(0x00, 0x00, 0x00, 0x06);
+      headerChunk.push(0x00, 0x00);
+      headerChunk.push(0x00, 0x01);
+      headerChunk.push(0x00, division);
+      const midiBytes = new Uint8Array([...headerChunk, ...trackChunk]);
+      const blob = new Blob([midiBytes], { type: 'audio/midi' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'recording.mid';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   </script>
 </body>
 </html>
