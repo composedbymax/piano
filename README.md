@@ -38,7 +38,7 @@ An interactive online piano application with customizable sound settings, a visu
 ## Setup & Usage
 1. Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/online-piano-app.git
+    git clone https://github.com/composedbymax/piano.git
     ```
 2. Open `index.html` in a browser.
 
