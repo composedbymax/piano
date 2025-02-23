@@ -19,8 +19,7 @@ An interactive online piano application with customizable sound settings, a visu
 
 ## How It Works
 - **Play Notes** – Click on the keys or use keyboard shortcuts.
-- **Change Octaves** – Press Z to shift down, X to shift up.
-- **Enable Reverb** – Use the slider to adjust reverb intensity.
+- **Enable Effects** – Use the slider to adjust effects.
 - **Use the Metronome** – Toggle it on and set the tempo.
 - **Record MIDI** – Play and capture your session.
 
@@ -28,18 +27,21 @@ An interactive online piano application with customizable sound settings, a visu
 
 | Action            | Key / Interaction   |
 |-------------------|---------------------|
-| Play Note         | Click / Keyboard     |
+| Play Note         | Click / Keyboard    |
 | Octave Down       | Z                   |
 | Octave Up         | X                   |
+| Slide Down        | 1                   |
+| Slide Up          | 2                   |
 | Toggle Metronome  | Checkbox            |
 | Adjust Tempo      | Number Input        |
-| Apply Reverb      | Slider              |
+| Adjust Volume     | Slider              |
+| Adjust Tuning     | Slider              |
+| Apply Reverb      | Toggle              |
+| Apply Waveform    | Toggle              |
 
 ## Setup & Usage
 1. Clone the repository:
     ```bash
     git clone https://github.com/composedbymax/piano.git
     ```
-2. Open `index.html` in a browser.
-
-Start playing music!
+2. Open `index.html` in a browser when in piano repo.
